@@ -77,7 +77,7 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"wvga", CAMCORDER_QUALITY_WVGA},
     {"vga", CAMCORDER_QUALITY_VGA},
     {"wqvga", CAMCORDER_QUALITY_WQVGA},
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) || defined(FOURKSUPPORT)
     {"4kuhd", CAMCORDER_QUALITY_4kUHD},
     {"4kdci", CAMCORDER_QUALITY_4kDCI},
 #endif
