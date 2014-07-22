@@ -551,9 +551,6 @@ void ExtendedCodec::configureVideoDecoder(
         return;
     }
 
-    // set frame packing
-    configureFramePackingFormat(msg, OMXhandle, nodeID, componentName);
-
     setDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
     AString fileFormat;
     const char *fileFormatCStr = NULL;
@@ -1209,11 +1206,12 @@ status_t ExtendedCodec::setAMRWBPLUSFormat(
     return err;
 }
 
-bool ExtendedCodec::useHWAACDecoder(const char *mime) {
+bool ExtendedCodec::useHWAACDecoder(const char *mime, int channelCount) {
     char value[PROPERTY_VALUE_MAX] = {0};
     int aaccodectype = 0;
     aaccodectype = property_get("media.aaccodectype", value, NULL);
     if (aaccodectype && !strncmp("1", value, 1) &&
+        channelCount > 0 &&
         !strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
         ALOGI("Using Hardware AAC Decoder");
         return true;
@@ -1384,7 +1382,7 @@ namespace android {
         const uint32_t flags, IOMX::node_id nodeID, const char* componentName) {
     }
 
-    bool ExtendedCodec::useHWAACDecoder(const char *mime) {
+    bool ExtendedCodec::useHWAACDecoder(const char *mime, int channelCount) {
         return false;
     }
 
