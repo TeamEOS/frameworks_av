@@ -386,11 +386,9 @@ status_t AwesomePlayer::setDataSource_l(
     reset_l();
 
     mUri = uri;
-    if (uri) {
-        printFileName(uri);
-    }
 
 #ifdef ENABLE_AV_ENHANCEMENTS
+    ExtendedUtils::printFileName(uri);
     ExtendedUtils::prefetchSecurePool(uri);
 #endif
 
@@ -429,12 +427,10 @@ status_t AwesomePlayer::setDataSource(
 
     ALOGD("Before reset_l");
     reset_l();
-    if (fd) {
-       printFileName(fd);
-    }
 
 #ifdef ENABLE_AV_ENHANCEMENTS
     if (fd) {
+        ExtendedUtils::printFileName(fd);
         ExtendedUtils::prefetchSecurePool(fd);
     }
 #endif
@@ -1664,7 +1660,13 @@ status_t AwesomePlayer::getPosition(int64_t *positionUs) {
         Mutex::Autolock autoLock(mMiscStateLock);
         *positionUs = mVideoTimeUs;
     } else if (mAudioPlayer != NULL) {
-        *positionUs = mAudioPlayer->getMediaTimeUs();
+        Mutex::Autolock autoLock(mMiscStateLock);
+        if (mAudioTearDownPosition == 0) {
+            *positionUs = mAudioPlayer->getMediaTimeUs();
+        } else {
+            /* AudioTearDown in progress */
+            *positionUs = mAudioTearDownPosition;
+        }
     } else {
         *positionUs = mAudioTearDownPosition;
     }
@@ -3078,6 +3080,7 @@ void AwesomePlayer::finishAsyncPrepare_l() {
         if (mPrepareResult == OK) {
             if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
                 seekTo_l(mAudioTearDownPosition);
+                mAudioTearDownPosition = 0;
             }
 
             if (mAudioTearDownWasPlaying) {
