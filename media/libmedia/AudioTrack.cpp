@@ -792,7 +792,7 @@ status_t AudioTrack::setVolume(float left, float right)
 #endif
         mProxy->setVolumeLR(gain_minifloat_pack(gain_from_float(left), gain_from_float(right)));
 
-    if (isOffloaded_l()) {
+    if (isOffloaded_l() && mAudioTrack != NULL) {
         mAudioTrack->signal();
     }
     return NO_ERROR;
@@ -1390,7 +1390,11 @@ status_t AudioTrack::createTrack_l()
         mStaticProxy = new StaticAudioTrackClientProxy(cblk, buffers, frameCount, mFrameSizeAF);
         mProxy = mStaticProxy;
     }
-    mProxy->setVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY);
+
+    mProxy->setVolumeLR(gain_minifloat_pack(
+            gain_from_float(mVolume[AUDIO_INTERLEAVE_LEFT]),
+            gain_from_float(mVolume[AUDIO_INTERLEAVE_RIGHT])));
+
     mProxy->setSendLevel(mSendLevel);
     mProxy->setSampleRate(mSampleRate);
     mProxy->setMinimum(mNotificationFramesAct);
@@ -2269,8 +2273,8 @@ void AudioTrack::setAttributesFromStreamType(audio_stream_type_t streamType) {
     case AUDIO_STREAM_INCALL_MUSIC:
         mAttributes.content_type = AUDIO_CONTENT_TYPE_MUSIC;
         mAttributes.usage = AUDIO_USAGE_MEDIA;
-        break;
 #endif
+        break;
     case AUDIO_STREAM_VOICE_CALL:
         mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
         mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
