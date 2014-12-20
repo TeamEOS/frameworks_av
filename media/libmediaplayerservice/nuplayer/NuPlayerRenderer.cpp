@@ -35,6 +35,10 @@
 
 #include <inttypes.h>
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include "ExtendedUtils.h"
+#endif
+
 namespace android {
 
 // Maximum time in paused state when offloading audio decompression. When elapsed, the AudioSink
@@ -1066,7 +1070,9 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
     {
          Mutex::Autolock autoLock(mLock);
          syncQueuesDone_l();
-         setPauseStartedTimeRealUs(-1);
+         if (!(offloadingAudio()) && !(mPaused)) {
+             setPauseStartedTimeRealUs(-1);
+         }
     }
 
     ALOGV("flushing %s", audio ? "audio" : "video");
@@ -1222,6 +1228,10 @@ void NuPlayer::Renderer::onResume() {
 
     if (!mAudioQueue.empty()) {
         postDrainAudioQueue_l();
+    } else if (mHasAudio) {
+        // Audio decoder is not ready when resuming playback after
+        // changing audio track. Queue synching is needed.
+        mSyncQueues = true;
     }
 
     if (!mVideoQueue.empty()) {
@@ -1364,9 +1374,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
     CHECK(format->findString("mime", &mime));
 
 #ifdef ENABLE_AV_ENHANCEMENTS
-    char prop[PROPERTY_VALUE_MAX] = {0};
-    property_get("audio.offload.pcm.enable", prop, "0");
-    pcmOffload = (atoi(prop) || !strcmp(prop, "true")) &&
+    pcmOffload = ExtendedUtils::isPcmOffloadEnabled() &&
             !strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW);
 
     // At this point we can check if PCM should be offloaded
