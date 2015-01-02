@@ -696,8 +696,17 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 instantiateDecoder(false, &mVideoDecoder);
             }
 
-            if (mAudioSink != NULL) {
-                if (mOffloadAudio) {
+            // Don't try to re-open audio sink if there's an existing decoder.
+            if (mAudioSink != NULL && mAudioDecoder == NULL) {
+                sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+                sp<MetaData> videoMeta = mSource->getFormatMeta(false /* audio */);
+                audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
+                bool canOffload = canOffloadStream(audioMeta, (videoMeta != NULL),
+                         videoMeta, true /* is_streaming */, streamType);
+                if (canOffload) {
+                    if (!mOffloadAudio) {
+                        mRenderer->signalEnableOffloadAudio();
+                    }
                     // open audio sink early under offload mode.
                     sp<AMessage> format = mSource->getFormat(true /*audio*/);
                     openAudioSink(format, true /*offloadOnly*/);
@@ -937,7 +946,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 ALOGV("media rendering started");
                 notifyListener(MEDIA_STARTED, 0, 0);
             } else if (what == Renderer::kWhatAudioOffloadTearDown) {
-                ALOGV("Tear down audio offload, fall back to s/w path");
+                ALOGV("Tear down audio offload, fall back to s/w path if due to error.");
                 int64_t positionUs;
                 CHECK(msg->findInt64("positionUs", &positionUs));
                 int32_t reason;
@@ -949,11 +958,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 if (mVideoDecoder != NULL) {
                     mRenderer->flush(false /* audio */);
                 }
-                mRenderer->signalDisableOffloadAudio();
-                mOffloadAudio = false;
 
                 performSeek(positionUs, false /* needNotify */);
                 if (reason == Renderer::kDueToError) {
+                    mRenderer->signalDisableOffloadAudio();
+                    mOffloadAudio = false;
                     instantiateDecoder(true /* audio */, &mAudioDecoder);
                 }
             }
@@ -1158,6 +1167,33 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
     } else {
         flags = AUDIO_OUTPUT_FLAG_NONE;
     }
+
+    format->setInt64("durationUs", durationUs);
+
+    // avoid PCM offload when resampler is used
+    bool resampled = false;
+    sp<MetaData> audioMeta = mSource->getFormatMeta(true);
+
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
+        int32_t srcBitsPerSample, bitsPerSample = 16;
+        int32_t srcChannels, channels = 0;
+        int32_t srcSampleRate, sampleRate = 0;
+        audioMeta->findInt32(kKeyBitsPerSample, &srcBitsPerSample);
+        format->findInt32("bits-per-sample", &bitsPerSample);
+        audioMeta->findInt32(kKeyChannelCount, &srcChannels);
+        format->findInt32("channel-count", &channels);
+        audioMeta->findInt32(kKeySampleRate, &srcSampleRate);
+        format->findInt32("sample-rate", &sampleRate);
+
+        resampled = !((srcBitsPerSample == bitsPerSample) &&
+                      (srcChannels == channels) &&
+                      (srcSampleRate == sampleRate));
+        format->setInt32("resampled", resampled);
+    }
+
+    ALOGV("openAudioSink: resampled=%d format=%s", resampled, format->debugString().c_str());
 
     mOffloadAudio = mRenderer->openAudioSink(
             format, offloadOnly, (mVideoDecoder != NULL), flags);
