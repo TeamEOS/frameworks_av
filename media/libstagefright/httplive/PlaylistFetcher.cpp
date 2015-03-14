@@ -24,6 +24,7 @@
 #include "M3UParser.h"
 
 #include "include/avc_utils.h"
+#include "include/ExtendedUtils.h"
 #include "include/HTTPBase.h"
 #include "include/ID3.h"
 #include "mpeg2ts/AnotherPacketSource.h"
@@ -37,6 +38,8 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
+
+#include "include/ExtendedUtils.h"
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -83,6 +86,7 @@ PlaylistFetcher::PlaylistFetcher(
       mIsFirstTSDownload(downloadFirstTs),
       mAbsoluteTimeAnchorUs(0ll),
       mVideoBuffer(new AnotherPacketSource(NULL)),
+      mTargetDurationUs(10000000ll),
       mRangeOffset(0),
       mRangeLength(0),
       mDownloadOffset(0),
@@ -672,6 +676,9 @@ void PlaylistFetcher::onMonitorQueue() {
     if (durationToBufferUs > kMinBufferedDurationUs)  {
         durationToBufferUs = kMinBufferedDurationUs;
     }
+    if (ExtendedUtils::ShellProp::isCustomHLSEnabled()) {
+        durationToBufferUs = mTargetDurationUs;
+    }
 
     int64_t bufferedDurationUs = 0ll;
     status_t finalResult = NOT_ENOUGH_DATA;
@@ -730,6 +737,10 @@ void PlaylistFetcher::onMonitorQueue() {
         }
 
     } else {
+        if (ExtendedUtils::ShellProp::isCustomHLSEnabled() && mTargetDurationUs == 10000000ll) {
+            mTargetDurationUs = 25000000ll;
+        }
+
         // Nothing to do yet, try again in a second.
 
         sp<AMessage> msg = mNotify->dup();
@@ -1097,7 +1108,7 @@ void PlaylistFetcher::onDownloadBlock() {
         return;
     }
 
-    if (bytesRead == 0) {
+    if (bytesRead == 0 || bytesRead < kDownloadBlockSize) {
         onSegmentComplete();
     } else {
         sp<AMessage> msg = new AMessage(kWhatDownloadBlock, id());
@@ -1413,14 +1424,19 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                     const char *mime;
                     sp<MetaData> format  = source->getFormat();
                     bool isAvc = false;
-                    if (format != NULL && format->findCString(kKeyMIMEType, &mime)
-                            && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
-                        isAvc = true;
+                    bool isHevc = false;
+                    if (format != NULL && format->findCString(kKeyMIMEType, &mime)) {
+                        if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+                            isAvc = true;
+                        } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
+                            isHevc = true;
+                        }
                     }
-                    if (isAvc && IsIDR(accessUnit)) {
+                    if ((isAvc && IsIDR(accessUnit)) || (isHevc &&
+                            ExtendedUtils::IsHevcIDR(accessUnit))) {
                         mVideoBuffer->clear();
                     }
-                    if (isAvc) {
+                    if (isAvc || isHevc) {
                         mVideoBuffer->queueAccessUnit(accessUnit);
                     }
 

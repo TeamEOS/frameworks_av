@@ -167,6 +167,8 @@ struct ExtendedUtils {
 
         //helper function to parse rtp port range form system property
         static void getRtpPortRange(unsigned *start, unsigned *end);
+
+        static bool isCustomHLSEnabled();
     };
 
     struct RTSPStream {
@@ -262,6 +264,9 @@ struct ExtendedUtils {
 
     static void detectAndPostImage(const sp<ABuffer> accessunit, const sp<AMessage> &notify);
     static void showImageInNativeWindow(const sp<AMessage> &msg, const sp<AMessage> &format);
+
+    static sp<MetaData> MakeHEVCCodecSpecificData(const sp<ABuffer> &accessUnit);
+    static bool IsHevcIDR(const sp<ABuffer> &accessUnit);
 };
 
 }
