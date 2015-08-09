@@ -41,6 +41,9 @@ static bool FileHasAcceptableExtension(const char *extension) {
         ".wav", ".amr", ".midi", ".xmf", ".rtttl", ".rtx", ".ota",
         ".mkv", ".mka", ".webm", ".ts", ".fl", ".flac", ".mxmf",
         ".avi", ".mpeg", ".mpg", ".awb", ".mpga"
+#ifdef USE_SEIREN_AUDIO
+        , ".mp1", ".mp2"
+#endif
     };
     static const size_t kNumValidExtensions =
         sizeof(kValidExtensions) / sizeof(kValidExtensions[0]);

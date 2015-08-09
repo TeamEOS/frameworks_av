@@ -159,6 +159,14 @@ endif
 
 LOCAL_CLANG := true
 
+ifeq ($(BOARD_USE_ALP_AUDIO),  true)
+LOCAL_CFLAGS += -DUSE_ALP_AUDIO
+endif
+
+ifeq ($(BOARD_USE_SEIREN_AUDIO), true)
+LOCAL_CFLAGS += -DUSE_SEIREN_AUDIO
+endif
+
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional
